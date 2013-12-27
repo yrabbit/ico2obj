@@ -1,0 +1,33 @@
+# Makefile for cweave, ctangle, plain TeX etc
+CTANGLE = ctangle
+CWEAVE = cweave
+TEX = plain-ru
+CFLAGS=-Wall -g
+CFLAGS+=-I /usr/local/include
+LDFLAGS=-L/usr/local/lib -largp 
+
+all: ico2obj.pdf ico2obj
+
+ico2obj.pdf: ico2obj.ps
+	gs -sDEVICE=pdfwrite -sOutputFile=ico2obj.pdf -dBATCH -dNOPAUSE ico2obj.ps
+
+ico2obj.ps: ico2obj.dvi
+	dvips -j0 ico2obj.dvi -o
+
+ico2obj.dvi: ico2obj.tex
+	$(TEX) ico2obj.tex
+
+ico2obj.tex: ico2obj.w
+	$(CWEAVE) ico2obj.w
+
+ico2obj: ico2obj.c
+	CC $(CFLAGS) $(LDFLAGS) ico2obj.c -o ico2obj
+
+ico2obj.c: ico2obj.w
+	$(CTANGLE) ico2obj.w
+
+clean:
+	-rm -Rf *.c *.o link
+	-rm -Rf *.tex *.aux *.log *.toc *.idx *.scn *.dvi *.pdf *.ps
+
+
