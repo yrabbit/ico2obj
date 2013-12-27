@@ -99,13 +99,18 @@ static char args_doc[] = "file [...]";
 	\item {} {\tt -v} --- вывод дополнительной информации (возможно указание
 	дважды);
 	\item {} {\tt -l LABEL} --- шаблон метки для изображения (6 символов
-	RADIX50).
+	RADIX50);
+	\item {} {\tt -[0123]} --- номера цветов для битов.
 \smallskip
 @<Глобальн...@>=
 static struct argp_option options[] = {@/
 	{ "output", 'o', "FILENAME", 0, "Output filename"},@/
-	{ "verbose", 'v', NULL, 0, "Verbose output"},@!
-	{ "label", 'l', "LABEL", 0, "Label for images"},@!
+	{ "verbose", 'v', NULL, 0, "Verbose output"},@/
+	{ "label", 'l', "LABEL", 0, "Label for images"},@/
+	{ "color0", '0', "COLOR", 0, "Color number for bits 00"},@/
+	{ "color1", '1', "COLOR", 0, "Color number for bits 01"},@/
+	{ "color2", '2', "COLOR", 0, "Color number for bits 10"},@/
+	{ "color3", '3', "COLOR", 0, "Color number for bits 11"},@/
 	{ 0 }@/
 };
 static error_t parse_opt(int, char*, struct argp_state*);@!
@@ -116,15 +121,14 @@ static struct argp argp = {options, parse_opt, args_doc, argp_program_doc};
 typedef struct _Arguments {
 	int  verbosity;
 	char output_filename[FILENAME_MAX]; /* Имя файла с текстом */
-	char label[7];	    /* Максимальная длина имени выходных
-						файлов. По умолчанию для MKDOS
-						равна 14 */
-	char **picnames;		    /* Имена объектных файлов
-					 objnames[?] == NULL --> конец имен*/
+	char label[7];	    /* Метка для картинок в объектном файле*/
+	char **picnames;		    /* Имена файлов картинок
+					 picnames[?] == NULL --> конец имен*/
+	int colors[4]; /* Номера цветов для битов */				 
 } Arguments;
 
 @ @<Глобальные...@>=
-static Arguments config = { 0, {0}, {0}, NULL, };
+static Arguments config = { 0, {0}, {0}, NULL, {0}, };
 
 
 @ Задачей данного простого парсера является заполнение структуры |Arguments| из указанных
@@ -148,8 +152,20 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 			return(ARGP_ERR_UNKNOWN);
 		strncpy(arguments->output_filename, arg, FILENAME_MAX - 1);
 		break;
+	case '0' :
+		arguments->colors[0] = atoi(arg);
+		break;
+	case '1' :
+		arguments->colors[1] = atoi(arg);
+		break;
+	case '2' :
+		arguments->colors[2] = atoi(arg);
+		break;
+	case '3' :
+		arguments->colors[3] = atoi(arg);
+		break;
 	case ARGP_KEY_ARG:
-		/* Имена объектных файлов */
+		/* Имена файлов картинок */
 		arguments->picnames = &state->argv[state->next - 1];
 		/* Останавливаем разбор параметров */
 		state->next = state->argc;

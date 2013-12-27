@@ -2,7 +2,7 @@
 #line 34 "ico2obj.w"
 
 /*15:*/
-#line 179 "ico2obj.w"
+#line 195 "ico2obj.w"
 
 #include <string.h> 
 #include <stdlib.h> 
@@ -34,16 +34,15 @@ const char*argp_program_bug_address= "<yellowrabbit@bk.ru>";
 #line 37 "ico2obj.w"
 
 /*11:*/
-#line 115 "ico2obj.w"
+#line 120 "ico2obj.w"
 
 typedef struct _Arguments{
 int verbosity;
 char output_filename[FILENAME_MAX];
 char label[7];
-
-
 char**picnames;
 
+int colors[4];
 }Arguments;
 
 /*:11*/
@@ -68,25 +67,29 @@ static char argp_program_doc[]= "Convert ICO images to object file";
 static char args_doc[]= "file [...]";
 
 /*:9*//*10:*/
-#line 104 "ico2obj.w"
+#line 105 "ico2obj.w"
 
 static struct argp_option options[]= {
 {"output",'o',"FILENAME",0,"Output filename"},
 {"verbose",'v',NULL,0,"Verbose output"},
 {"label",'l',"LABEL",0,"Label for images"},
+{"color0",'0',"COLOR",0,"Color number for bits 00"},
+{"color1",'1',"COLOR",0,"Color number for bits 01"},
+{"color2",'2',"COLOR",0,"Color number for bits 10"},
+{"color3",'3',"COLOR",0,"Color number for bits 11"},
 {0}
 };
 static error_t parse_opt(int,char*,struct argp_state*);
 static struct argp argp= {options,parse_opt,args_doc,argp_program_doc};
 
 /*:10*//*12:*/
-#line 126 "ico2obj.w"
+#line 130 "ico2obj.w"
 
-static Arguments config= {0,{0},{0},NULL,};
+static Arguments config= {0,{0},{0},NULL,{0},};
 
 
 /*:12*//*16:*/
-#line 190 "ico2obj.w"
+#line 206 "ico2obj.w"
 
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
@@ -109,7 +112,7 @@ FILE*fpic;
 const char*picname;
 
 /*14:*/
-#line 167 "ico2obj.w"
+#line 183 "ico2obj.w"
 
 argp_parse(&argp,argc,argv,0,0,&config);
 
@@ -156,7 +159,7 @@ handleOneFile(FILE*fpic){
 }
 
 /*:5*//*13:*/
-#line 132 "ico2obj.w"
+#line 136 "ico2obj.w"
 
 static error_t
 parse_opt(int key,char*arg,struct argp_state*state){
@@ -175,6 +178,18 @@ case'o':
 if(strlen(arg)==0)
 return(ARGP_ERR_UNKNOWN);
 strncpy(arguments->output_filename,arg,FILENAME_MAX-1);
+break;
+case'0':
+arguments->colors[0]= atoi(arg);
+break;
+case'1':
+arguments->colors[1]= atoi(arg);
+break;
+case'2':
+arguments->colors[2]= atoi(arg);
+break;
+case'3':
+arguments->colors[3]= atoi(arg);
 break;
 case ARGP_KEY_ARG:
 
