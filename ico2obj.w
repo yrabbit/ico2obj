@@ -141,6 +141,11 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 				imgs[cur_image].bpp, cur_image, config.picnames[cur_input]);
 			continue;
 		}
+		if (imgs[cur_image].width % 4 != 0) {
+			PRINTERR("Bad width (%d) for image %d of %s.\n", 
+				imgs[cur_image].width, cur_image, config.picnames[cur_input]);
+			continue;
+		}
 		@<Обработать одно изображение@>@;
 	}
 
@@ -155,16 +160,52 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 	256 пикселей в ширину, 256 пикселей в высоту, 2 пиксела в байте
 	*/
 	static uint8_t picOutData[256*256/4];
-	int i, j;
+	int i, j, k;
+	uint8_t acc;
+
 @ @<Обработать одно...@>=
 	PRINTVERB(2, "Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
 	" size:%d, offset:%x\n", cur_image,
 	imgs[cur_image].width, imgs[cur_image].height, 
 	imgs[cur_image].colors, imgs[cur_image].planes, imgs[cur_image].bpp,
 	imgs[cur_image].size, imgs[cur_image].offset);
-	
+	write_label();
+@ Переписываем данные из 16-ти цветного формата в 4-х цветный.
+@<Обработать одно...@>=
+	k = 0;
+	for (i = 0; i < imgs[cur_image].height; ++i) {
+		acc = 0;
+		for (j = 0; j < imgs[cur_image].width / 4; ++j) {
+			acc += recodeColor(picInData[i * imgs[cur_image].width /
+				2 +  j] & 0xf);
+			acc += recodeColor((picInData[i * imgs[cur_image].width /
+				2 +  j] & 0xf0) >> 4) << 2;
+			++j;	
+			acc += recodeColor(picInData[i * imgs[cur_image].width /
+				2 +  j] & 0xf) << 4;
+			acc += recodeColor((picInData[i * imgs[cur_image].width /
+				2 +  j] & 0xf0) >> 4) << 6;
+			picOutData[k++] = acc;	
+		}
+	}
+	write_text(picOutData, k);
+@
+@c
+static uint8_t
+recodeColor(uint8_t col) {
+	int i;
+
+	for (i =0; i < 4; ++i) {
+		if (col = config.colors[i]) {
+			return(i);
+		}
+	}
+	return(0);
+}
+
 @ @<Прототипы@>=
 static void handleOneFile(FILE *, ICO_Header *);
+static uint8_t recodeColor(uint8_t);
 
 @* Работа с объектным файлом.
 
@@ -183,11 +224,11 @@ static void handleOneFile(FILE *, ICO_Header *);
 заканчивается байтом контрольной суммы.
 @c
 static void
-write_block(uint8_t *data, uint16_t data_len) {
+write_block_with_header(uint8_t *data, uint16_t data_len, uint8_t *hdr, uint8_t hdr_len) {
 	uint8_t chksum;
 	uint16_t len;
 
-	len = data_len + 4;
+	len = data_len + hdr_len + 4;
 	chksum = 0;
 	
 	fputc(1, fobj);
@@ -198,11 +239,23 @@ write_block(uint8_t *data, uint16_t data_len) {
 	chksum -= len & 0xff;
 	chksum -= (len & 0xff00) >> 8;
 	
+	if (hdr_len != 0) {
+		fwrite(hdr, hdr_len, 1, fobj);
+		for (; hdr_len > 0; --hdr_len) {
+			chksum -= *hdr++;
+		}
+	}	
+
 	fwrite(data, data_len, 1, fobj);
 	for (; data_len > 0; --data_len) {
 		chksum -= *data++;
 	}
 	fputc(chksum, fobj);
+}
+
+static void
+write_block(uint8_t *data, uint16_t data_len) {
+	write_block_with_header(data, data_len, NULL, 0);
 }
 
 @ Записать блок ENDMOD.
@@ -230,7 +283,8 @@ write_endgsd(void) {
 }
 
 @ Записать начальные блоки GSD, которые содержат описания программных секций,
-имени модуля и пр.
+имени модуля и пр. Для программной секции оставляем место под неизвестную на
+этом этапе длину.
 @c
 static void
 write_initial_gsd(void) {
@@ -243,7 +297,76 @@ write_initial_gsd(void) {
 	buf[2] = toRadix50("C$$");
 	buf[3] = buf[4] = 0;
 
-	write_block((uint8_t*)buf, 4 * 2);
+	/* Программная секция */
+	buf[5] = toRadix50(config.section_name);
+	buf[6] = toRadix50(config.section_name + 3);
+	/* Тип и флаги секции */
+	buf[7] = 0x500 + 040 + config.save;
+	/* ЗДЕСЬ будет длина секции  */
+	buf[8] = 0xffff;
+
+	write_block((uint8_t*)buf, 9 * 2);
+}
+
+@ Записать начальный блок перемещения (RLD). 
+@c
+static void
+write_rld(void) {
+	uint8_t buf[2];
+
+	buf[0] = 4; /* RLD */
+	buf[1] = 0;
+
+	buf[2] = 7; /* Location counter definition */
+	buf[3] = 0;
+
+	((uint16_t*)(buf + 4))[0] = toRadix50(config.section_name);
+	((uint16_t*)(buf + 4))[1] = toRadix50(config.section_name + 3);
+
+	buf[8] = buf[9] = 0;
+	write_block((uint8_t*)buf, 10);
+}
+
+@ Записать метку картинки. Метка получается из шаблона, заданного в командной
+строке, к которому добавляется номер картинки в десятичной системе счисления.
+Шаблон усекается так, чтобы имя метки не превысило 6-ти символов.
+@<Глобальные...@>=
+static uint16_t location = 0;
+static int label_count = 0;
+@ 
+@c
+static void
+write_label(void) {
+	uint16_t buf[5];
+	char name[7], label[7];
+	int len;
+
+	buf[0] = 1; /* GSD */
+
+	/* Имя метки */@|
+	snprintf(label, 6, "%d", label_count++);
+	len = strlen(label);
+	strcpy(name, config.label);
+	name[6 - len] = '\0';
+	strcat(name, label);
+
+	buf[1] = toRadix50(name);
+	buf[2] = toRadix50(name + 3);
+	buf[3] = 0150 + 4 * 256;
+	buf[4] = location + 5;
+	write_block((uint8_t*)buf, 5 * 2);
+}
+
+@ Записать графические данные картинки.
+@c
+static void
+write_text(uint8_t *data, int len) {
+	uint16_t hdr[2];
+
+	hdr[0] = 3;
+	hdr[1] = location;
+	write_block_with_header(data, len, (uint8_t*)hdr, 4);
+	location += len;
 }
 
 @ @<Записать начало объектного файла@>=
@@ -253,6 +376,7 @@ write_initial_gsd(void) {
 		return(ERR_CANTOPENOBJ);
 	}
 	write_initial_gsd();
+	write_rld();
 
 @ @<Закрыть объектный файл@>=
 	write_endgsd();
@@ -261,11 +385,16 @@ write_initial_gsd(void) {
 
 @ @<Прототипы...@>=
 static void write_block(uint8_t *, uint16_t);
+static void write_block_with_header(uint8_t *, uint16_t, uint8_t *, uint8_t);
 static void write_endmod(void);
 static void write_endgsd(void);
 static void write_initial_gsd(void);
+static void write_rld(void);
+static void write_label(void);
+static void write_text(uint8_t *, int);
 
 @* Вспомогательные функции.
+
 Упаковка строки в RADIX50.
 @c
 uint16_t toRadix50(char *str) {
@@ -369,7 +498,8 @@ typedef struct _Arguments {
 } Arguments;
 
 @ @<Глобальные...@>=
-static Arguments config = { 0, {0}, {0}, {0}, 0, NULL,@| 
+static Arguments config = { 0, {0}, {'P', 'I', 'C', 0, 0, 0, 0},@|
+{'S', 'P', 'I', 'C', 'T', ' ', 0}, 0, NULL,@| 
 /* Начальные номера цветов */
 {0, 1, 2, 3}, 0,
 };
