@@ -170,21 +170,23 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 	imgs[cur_image].colors, imgs[cur_image].planes, imgs[cur_image].bpp,
 	imgs[cur_image].size, imgs[cur_image].offset);
 	write_label();
+	fseek(fpic, imgs[cur_image].offset + 40 + 16 * 4, SEEK_SET);
+	fread(picInData, imgs[cur_image].size, 1, fpic);
 @ Переписываем данные из 16-ти цветного формата в 4-х цветный.
 @<Обработать одно...@>=
 	k = 0;
-	for (i = 0; i < imgs[cur_image].height; ++i) {
-		acc = 0;
-		for (j = 0; j < imgs[cur_image].width / 4; ++j) {
+	for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+		for (j = 0; j < imgs[cur_image].width / 2; ++j) {
+			acc = 0;
 			acc += recodeColor(picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf);
+				2 +  j] & 0xf) << 2;
 			acc += recodeColor((picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf0) >> 4) << 2;
+				2 +  j] & 0xf0) >> 4);
 			++j;	
 			acc += recodeColor(picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf) << 4;
+				2 +  j] & 0xf) << 6;
 			acc += recodeColor((picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf0) >> 4) << 6;
+				2 +  j] & 0xf0) >> 4) << 4;
 			picOutData[k++] = acc;	
 		}
 	}
@@ -196,7 +198,7 @@ recodeColor(uint8_t col) {
 	int i;
 
 	for (i =0; i < 4; ++i) {
-		if (col = config.colors[i]) {
+		if (col == config.colors[i]) {
 			return(i);
 		}
 	}
