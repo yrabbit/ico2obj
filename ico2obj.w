@@ -379,8 +379,8 @@ write_initial_gsd(void) {
 	buf[6] = toRadix50(config.section_name + 3);
 	/* Тип и флаги секции */
 	buf[7] = 0x500 + 040 + config.save;
-	/* ЗДЕСЬ будет длина секции  */
-	buf[8] = 0xffff;
+	/* Длина секции  */
+	buf[8] = location;
 
 	write_block((uint8_t*)buf, 9 * 2);
 }
@@ -430,7 +430,7 @@ write_label(void) {
 	buf[1] = toRadix50(name);
 	buf[2] = toRadix50(name + 3);
 	buf[3] = 0150 + 4 * 256;
-	buf[4] = location + 5;
+	buf[4] = location;
 	write_block((uint8_t*)buf, 5 * 2);
 }
 
@@ -452,18 +452,16 @@ write_text(uint8_t *data, int len) {
 		PRINTERR("Can't open %s.\n", config.output_filename);
 		return(ERR_CANTOPENOBJ);
 	}
-	write_initial_gsd();
+	/* Пропускаем место для начальной GSD  */
+	fseek(fobj, 9 * 2 + 5, SEEK_SET);
 	write_rld();
 
 @ @<Закрыть объектный файл@>=
 	write_endgsd();
 	write_endmod();@|
 	/* Возвращаемся назад и пишем длину секции */
-#if 0	
-	fseek(fobj, 8, SEEK_SET);
-	fputc(location & 0xff, fobj);
-	fputc((location & 0xff00) >> 8, fobj);
-#endif	
+	fseek(fobj, 0, SEEK_SET);
+	write_initial_gsd();
 	fclose(fobj);
 
 @ @<Прототипы...@>=
