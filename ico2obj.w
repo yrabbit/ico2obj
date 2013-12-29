@@ -23,13 +23,27 @@
 
 Входными параметрами являются: перечень имен графических файлов, имя
 выходного файла и несколько управляющих ключей.
-На выходе создается объектный файл для последующей линковки.
+На выходе создается объектный файл для линковки.
 
 Конвертор накладывает следующие ограничения на формат входных файлов
 изображений:
 \item{$\bullet$} одна битовая плоскость;
+\item{$\bullet$} графические данные без сжатия;
 \item{$\bullet$} 4 бита на точку.
 
+Преобразование цветов происходит по следующему принципу: 
+\item{1.} если номер цвета в палитре $>3$, то номер цвета принимается 0;
+\item{2.} номер цвета является индексом в 4-х элементной таблице, которая ставит
+комбинацию из двух битов в соответствие номеру цвета.
+
+Встроенная таблица перекодировки цветов может быть изменена опциями командной
+строки.
+
+Преобразование геометрии происходит всегда, так как в файлах ICO данные храняться
+снизу-вверх, справа-налево, но кроме этого предусмотрено преобразование типа
+``строка в столбец''. Это не транспонирование в буквальном смысле, так как
+по-другому располагаются не точки изображения, а байты. Еще один вариант:
+по-другому располагаются слова графических данных.
 
 @* Общая схема программы.
 @c
@@ -119,7 +133,12 @@ typedef struct _IMG_Header {
 static void
 handleOneFile(FILE *fpic, ICO_Header *hdr) {
 	int cur_image;
-	IMG_Header *imgs;
+	IMG_Header *imgs; @|
+
+	/* размеры картинок не получится хранить в байте, так что храним
+	 * отдельно */
+	int img_width, img_height;
+
 	@<Переменные для картинки@>@;
 
 	imgs = (IMG_Header*)malloc(sizeof(IMG_Header) * hdr->imagesCount);
@@ -136,14 +155,22 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 	}
 	
 	for (cur_image = 0; cur_image < hdr->imagesCount; ++cur_image) {
+		img_width = imgs[cur_image].width;
+		if (img_width == 0) {
+			img_width = 256;
+		}
+		img_height = imgs[cur_image].height;
+		if (img_height == 0) {
+			img_height = 256;
+		}
 		if (imgs[cur_image].bpp != 4) {
 			PRINTERR("Bad bits per pixel (%d) for image %d of %s.\n", 
 				imgs[cur_image].bpp, cur_image, config.picnames[cur_input]);
 			continue;
 		}
-		if (imgs[cur_image].width % 4 != 0) {
+		if (img_width % 4 != 0) {
 			PRINTERR("Bad width (%d) for image %d of %s.\n", 
-				imgs[cur_image].width, cur_image, config.picnames[cur_input]);
+				img_width, cur_image, config.picnames[cur_input]);
 			continue;
 		}
 		@<Обработать одно изображение@>@;
@@ -166,7 +193,7 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 @ @<Обработать одно...@>=
 	PRINTVERB(2, "Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
 	" size:%d, offset:%x\n", cur_image,
-	imgs[cur_image].width, imgs[cur_image].height, 
+	img_width, img_height, 
 	imgs[cur_image].colors, imgs[cur_image].planes, imgs[cur_image].bpp,
 	imgs[cur_image].size, imgs[cur_image].offset);
 	write_label();
@@ -176,58 +203,58 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 @<Обработать одно...@>=
 	k = 0;
 	if (config.transpose == 0) {
-		for (i = imgs[cur_image].height - 1; i >= 0; --i) {
-			for (j = 0; j < imgs[cur_image].width / 2; ++j) {
+		for (i = img_height - 1; i >= 0; --i) {
+			for (j = 0; j < img_width / 2; ++j) {
 				acc = 0;
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j] & 0xf) << 2;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j] & 0xf0) >> 4);
 				++j;	
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j] & 0xf) << 6;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j] & 0xf0) >> 4) << 4;
 				picOutData[k++] = acc;	
 			}
 		}
 	} else if (config.transpose == 1) {
-		for (j = 0; j < imgs[cur_image].width / 2; j += 2) {
-			for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+		for (j = 0; j < img_width / 2; j += 2) {
+			for (i = img_height - 1; i >= 0; --i) {
 				acc = 0;
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j] & 0xf) << 2;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j] & 0xf0) >> 4);
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j + 1] & 0xf) << 6;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j + 1] & 0xf0) >> 4) << 4;
 				picOutData[k++] = acc;	
 			}
 		}
 	} else {
-		for (j = 0; j < imgs[cur_image].width / 2; j += 4) {
-			for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+		for (j = 0; j < img_width / 2; j += 4) {
+			for (i = img_height - 1; i >= 0; --i) {
 				acc = 0;
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j] & 0xf) << 2;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j] & 0xf0) >> 4);
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j + 1] & 0xf) << 6;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j + 1] & 0xf0) >> 4) << 4;
 				picOutData[k++] = acc;	
 
 				acc = 0;
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j + 2] & 0xf) << 2;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j + 2] & 0xf0) >> 4);
-				acc += recodeColor(picInData[i * imgs[cur_image].width /
+				acc += recodeColor(picInData[i * img_width /
 					2 +  j + 3] & 0xf) << 6;
-				acc += recodeColor((picInData[i * imgs[cur_image].width /
+				acc += recodeColor((picInData[i * img_width /
 					2 +  j + 3] & 0xf0) >> 4) << 4;
 				picOutData[k++] = acc;	
 			}
@@ -259,7 +286,7 @@ static uint8_t recodeColor(uint8_t);
 	\item {$\bullet$} GSD~---~для меток картинок и т.д.;
 	\item {$\bullet$} ENDGSD~---~конец меток и прочего;
 	\item {$\bullet$} RLD~---~хотя картинки и располагаются друг за другом в
-	памяти, иногда придётся указывать смещение;
+	памяти, иногда придется указывать смещение;
 	\item {$\bullet$} TXT~---~собственно данные картинок;
 	\item {$\bullet$} ENDMOD~---~конец модуля.
 @<Глобальные...@>=
@@ -333,7 +360,7 @@ write_endgsd(void) {
 @c
 static void
 write_initial_gsd(void) {
-	uint16_t buf[50];
+	uint16_t buf[9];
 
 	buf[0] = 1; /* GSD */
 
@@ -425,7 +452,13 @@ write_text(uint8_t *data, int len) {
 
 @ @<Закрыть объектный файл@>=
 	write_endgsd();
-	write_endmod();
+	write_endmod();@|
+	/* Возвращаемся назад и пишем длину секции */
+#if 0	
+	fseek(fobj, 8, SEEK_SET);
+	fputc(location & 0xff, fobj);
+	fputc((location & 0xff00) >> 8, fobj);
+#endif	
 	fclose(fobj);
 
 @ @<Прототипы...@>=
