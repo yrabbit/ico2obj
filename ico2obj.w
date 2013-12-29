@@ -175,19 +175,62 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 @ Переписываем данные из 16-ти цветного формата в 4-х цветный.
 @<Обработать одно...@>=
 	k = 0;
-	for (i = imgs[cur_image].height - 1; i >= 0; --i) {
-		for (j = 0; j < imgs[cur_image].width / 2; ++j) {
-			acc = 0;
-			acc += recodeColor(picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf) << 2;
-			acc += recodeColor((picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf0) >> 4);
-			++j;	
-			acc += recodeColor(picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf) << 6;
-			acc += recodeColor((picInData[i * imgs[cur_image].width /
-				2 +  j] & 0xf0) >> 4) << 4;
-			picOutData[k++] = acc;	
+	if (config.transpose == 0) {
+		for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+			for (j = 0; j < imgs[cur_image].width / 2; ++j) {
+				acc = 0;
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf) << 2;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf0) >> 4);
+				++j;	
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf) << 6;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf0) >> 4) << 4;
+				picOutData[k++] = acc;	
+			}
+		}
+	} else if (config.transpose == 1) {
+		for (j = 0; j < imgs[cur_image].width / 2; j += 2) {
+			for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+				acc = 0;
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf) << 2;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf0) >> 4);
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j + 1] & 0xf) << 6;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j + 1] & 0xf0) >> 4) << 4;
+				picOutData[k++] = acc;	
+			}
+		}
+	} else {
+		for (j = 0; j < imgs[cur_image].width / 2; j += 4) {
+			for (i = imgs[cur_image].height - 1; i >= 0; --i) {
+				acc = 0;
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf) << 2;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j] & 0xf0) >> 4);
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j + 1] & 0xf) << 6;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j + 1] & 0xf0) >> 4) << 4;
+				picOutData[k++] = acc;	
+
+				acc = 0;
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j + 2] & 0xf) << 2;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j + 2] & 0xf0) >> 4);
+				acc += recodeColor(picInData[i * imgs[cur_image].width /
+					2 +  j + 3] & 0xf) << 6;
+				acc += recodeColor((picInData[i * imgs[cur_image].width /
+					2 +  j + 3] & 0xf0) >> 4) << 4;
+				picOutData[k++] = acc;	
+			}
 		}
 	}
 	write_text(picOutData, k);
@@ -471,11 +514,11 @@ static char args_doc[] = "file [...]";
 @<Глобальн...@>=
 static struct argp_option options[] = {@/
 	{ "output", 'o', "FILENAME", 0, "Output filename"},@/
-	{ "verbose", 'v', NULL, 0, "Verbose output"},@/
+	{ "verbose", 'v', NULL, 0, "Verbose output (-vv --- more debug info)"},@/
 	{ "section", 's', "SECTION_NAME", 0, "Program section name"},@|
 	{ "attr", 'a', NULL, 0, "Set program section SAV attribute"},@|
 	{ "label", 'l', "LABEL", 0, "Label for images"},@/
-	{ "trans", 't', NULL, 0, "Transpose image"},@|
+	{ "trans", 't', NULL, 0, "Transpose image (-tt --- transpose by word)"},@|
 	{ "color0", '0', "COLOR", 0, "Color number for bits 00"},@/
 	{ "color1", '1', "COLOR", 0, "Color number for bits 01"},@/
 	{ "color2", '2', "COLOR", 0, "Color number for bits 10"},@/
@@ -516,7 +559,7 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 	arguments = (Arguments*)state->input;
  switch (key) {
 	case 't':
-		arguments->transpose = 1;
+		++arguments->transpose;
 		break;
 	case 'a':
 		arguments->save = 1;
