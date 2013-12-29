@@ -2,7 +2,7 @@
 #line 49 "ico2obj.w"
 
 /*37:*/
-#line 661 "ico2obj.w"
+#line 666 "ico2obj.w"
 
 #include <string.h> 
 #include <stdlib.h> 
@@ -28,7 +28,7 @@
 #line 51 "ico2obj.w"
 
 /*30:*/
-#line 526 "ico2obj.w"
+#line 531 "ico2obj.w"
 
 const char*argp_program_version= "ico2obj, "VERSION;
 const char*argp_program_bug_address= "<yellowrabbit@bk.ru>";
@@ -61,7 +61,7 @@ uint32_t offset;
 }IMG_Header;
 
 /*:8*//*33:*/
-#line 565 "ico2obj.w"
+#line 570 "ico2obj.w"
 
 typedef struct _Arguments{
 int verbosity;
@@ -79,13 +79,13 @@ int transpose;
 #line 53 "ico2obj.w"
 
 /*14:*/
-#line 278 "ico2obj.w"
+#line 283 "ico2obj.w"
 
 static void handleOneFile(FILE*,ICO_Header*);
 static uint8_t recodeColor(uint8_t);
 
 /*:14*//*26:*/
-#line 464 "ico2obj.w"
+#line 469 "ico2obj.w"
 
 static void write_block(uint8_t*,uint16_t);
 static void write_block_with_header(uint8_t*,uint16_t,uint8_t*,uint8_t);
@@ -97,7 +97,7 @@ static void write_label(void);
 static void write_text(uint8_t*,int);
 
 /*:26*//*28:*/
-#line 517 "ico2obj.w"
+#line 522 "ico2obj.w"
 
 static uint16_t toRadix50(char*);
 
@@ -109,23 +109,23 @@ static uint16_t toRadix50(char*);
 
 static int cur_input;
 /*:2*//*15:*/
-#line 292 "ico2obj.w"
+#line 297 "ico2obj.w"
 
 FILE*fobj;
 
 /*:15*//*21:*/
-#line 405 "ico2obj.w"
+#line 410 "ico2obj.w"
 
-static uint16_t location= 0;
+static int location= 0;
 static int label_count= 0;
 /*:21*//*31:*/
-#line 530 "ico2obj.w"
+#line 535 "ico2obj.w"
 
 static char argp_program_doc[]= "Convert ICO images to object file";
 static char args_doc[]= "file [...]";
 
 /*:31*//*32:*/
-#line 547 "ico2obj.w"
+#line 552 "ico2obj.w"
 
 static struct argp_option options[]= {
 {"output",'o',"FILENAME",0,"Output filename"},
@@ -144,7 +144,7 @@ static error_t parse_opt(int,char*,struct argp_state*);
 static struct argp argp= {options,parse_opt,args_doc,argp_program_doc};
 
 /*:32*//*34:*/
-#line 578 "ico2obj.w"
+#line 583 "ico2obj.w"
 
 static Arguments config= {0,{0},{'P','I','C',0,0,0,0},
 {'S','P','I','C','T',' ',0},0,NULL,
@@ -154,7 +154,7 @@ static Arguments config= {0,{0},{'P','I','C',0,0,0,0},
 
 
 /*:34*//*38:*/
-#line 672 "ico2obj.w"
+#line 677 "ico2obj.w"
 
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
@@ -182,7 +182,7 @@ ICO_Header hdr;
 const char*picname;
 
 /*36:*/
-#line 649 "ico2obj.w"
+#line 654 "ico2obj.w"
 
 argp_parse(&argp,argc,argv,0,0,&config);
 
@@ -202,7 +202,7 @@ return(ERR_SYNTAX);
 
 cur_input= 0;
 /*24:*/
-#line 444 "ico2obj.w"
+#line 449 "ico2obj.w"
 
 fobj= fopen(config.output_filename,"w");
 if(fobj==NULL){
@@ -251,7 +251,7 @@ fclose(fpic);
 ++cur_input;
 }
 /*25:*/
-#line 453 "ico2obj.w"
+#line 458 "ico2obj.w"
 
 write_endgsd();
 write_endmod();
@@ -282,7 +282,7 @@ IMG_Header*imgs;
 int img_width,img_height;
 
 /*10:*/
-#line 184 "ico2obj.w"
+#line 189 "ico2obj.w"
 
 static uint8_t picInData[256*256/2];
 
@@ -328,8 +328,13 @@ PRINTERR("Bad width (%d) for image %d of %s.\n",
 img_width,cur_image,config.picnames[cur_input]);
 continue;
 }
+if(imgs[cur_image].size+location> 0xffff){
+PRINTERR("Section size (%d) too big for image %d of %s.\n",
+imgs[cur_image].size+location,cur_image,config.picnames[cur_input]);
+continue;
+}
 /*11:*/
-#line 193 "ico2obj.w"
+#line 198 "ico2obj.w"
 
 PRINTVERB(2,"Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
 " size:%d, offset:%x\n",cur_image,
@@ -340,7 +345,7 @@ write_label();
 fseek(fpic,imgs[cur_image].offset+40+16*4,SEEK_SET);
 fread(picInData,imgs[cur_image].size,1,fpic);
 /*:11*//*12:*/
-#line 203 "ico2obj.w"
+#line 208 "ico2obj.w"
 
 k= 0;
 if(config.transpose==0){
@@ -403,7 +408,7 @@ picOutData[k++]= acc;
 }
 write_text(picOutData,k);
 /*:12*/
-#line 176 "ico2obj.w"
+#line 181 "ico2obj.w"
 
 }
 
@@ -411,7 +416,7 @@ free(imgs);
 }
 
 /*:9*//*13:*/
-#line 265 "ico2obj.w"
+#line 270 "ico2obj.w"
 
 static uint8_t
 recodeColor(uint8_t col){
@@ -426,7 +431,7 @@ return(0);
 }
 
 /*:13*//*16:*/
-#line 297 "ico2obj.w"
+#line 302 "ico2obj.w"
 
 static void
 write_block_with_header(uint8_t*data,uint16_t data_len,uint8_t*hdr,uint8_t hdr_len){
@@ -464,7 +469,7 @@ write_block_with_header(data,data_len,NULL,0);
 }
 
 /*:16*//*17:*/
-#line 334 "ico2obj.w"
+#line 339 "ico2obj.w"
 
 static void
 write_endmod(void){
@@ -477,7 +482,7 @@ write_block(buf,sizeof(buf));
 }
 
 /*:17*//*18:*/
-#line 346 "ico2obj.w"
+#line 351 "ico2obj.w"
 
 static void
 write_endgsd(void){
@@ -490,7 +495,7 @@ write_block(buf,sizeof(buf));
 }
 
 /*:18*//*19:*/
-#line 360 "ico2obj.w"
+#line 365 "ico2obj.w"
 
 static void
 write_initial_gsd(void){
@@ -515,7 +520,7 @@ write_block((uint8_t*)buf,9*2);
 }
 
 /*:19*//*20:*/
-#line 384 "ico2obj.w"
+#line 389 "ico2obj.w"
 
 static void
 write_rld(void){
@@ -535,7 +540,7 @@ write_block((uint8_t*)buf,10);
 }
 
 /*:20*//*22:*/
-#line 409 "ico2obj.w"
+#line 414 "ico2obj.w"
 
 static void
 write_label(void){
@@ -560,7 +565,7 @@ write_block((uint8_t*)buf,5*2);
 }
 
 /*:22*//*23:*/
-#line 433 "ico2obj.w"
+#line 438 "ico2obj.w"
 
 static void
 write_text(uint8_t*data,int len){
@@ -573,7 +578,7 @@ location+= len;
 }
 
 /*:23*//*27:*/
-#line 477 "ico2obj.w"
+#line 482 "ico2obj.w"
 
 uint16_t toRadix50(char*str){
 static char radtbl[]= " ABCDEFGHIJKLMNOPQRSTUVWXYZ$. 0123456789";
@@ -615,7 +620,7 @@ return(acc);
 }
 
 /*:27*//*35:*/
-#line 588 "ico2obj.w"
+#line 593 "ico2obj.w"
 
 static error_t
 parse_opt(int key,char*arg,struct argp_state*state){

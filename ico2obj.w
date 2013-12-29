@@ -173,6 +173,11 @@ handleOneFile(FILE *fpic, ICO_Header *hdr) {
 				img_width, cur_image, config.picnames[cur_input]);
 			continue;
 		}
+		if (imgs[cur_image].size + location > 0xffff) {
+			PRINTERR("Section size (%d) too big for image %d of %s.\n", 
+				imgs[cur_image].size + location, cur_image, config.picnames[cur_input]);
+			continue;
+		}
 		@<ќбработать одно изображение@>@;
 	}
 
@@ -403,7 +408,7 @@ write_rld(void) {
 строке, к которому добавл€етс€ номер картинки в дес€тичной системе счислени€.
 Ўаблон усекаетс€ так, чтобы им€ метки не превысило 6-ти символов.
 @<√лобальные...@>=
-static uint16_t location = 0;
+static int location = 0;
 static int label_count = 0;
 @ 
 @c
