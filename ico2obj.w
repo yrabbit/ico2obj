@@ -649,7 +649,18 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 @d ERR_BADFILEHEADER	4
 @d ERR_CANTOPENOBJ	5
 
-@<Разобрать ком...@>=
+@<Глобальные...@>=
+static char prog_name[FILENAME_MAX + 1];
+
+@ @<Разобрать ком...@>=
+	/* Проверяем не вызваны ли мы как fix-pal */
+	strncpy(prog_name, argv[0], FILENAME_MAX);
+	prog_name[FILENAME_MAX] = '\0';
+
+	if (strcmp("fix-pal", basename(prog_name)) == 0) {
+		@<Работаем как FIXPAL@>@;
+		return(0);
+	}
 	argp_parse(&argp, argc, argv, 0, 0, &config);@/
 	/* Проверка параметров */
 	if (strlen(config.output_filename) == 0) {
@@ -660,10 +671,223 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 		PRINTERR("No input filenames specified\n");
 		return(ERR_SYNTAX);
 	}
+@* Исправление цветов и установка палитры.
+@<Работаем как FIXPAL@>=
+	@<FIXPAL Разобрать командную строку@>@;
+	while ((picname = fixpal_config.picnames[cur_input]) != NULL) {
+		fpic = fopen(picname, "r+");
+		@<FIXPAL Проверить заголовок файла картинки@>@;
+		fixpal_handleOneFile(fpic, &hdr);
+		fclose(fpic);
+		++cur_input;
+	}
 
+@ @<FIXPAL Проверить заголовок файла картинки@>=
+	if (fpic== NULL) {
+		PRINTERR("Can't open %s\n", picname);
+		return(ERR_CANTOPEN);
+	}
+	if (fread(&hdr, sizeof(hdr), 1, fpic) != 1) {
+		PRINTERR("Can't read header of %s\n", picname);
+		return(ERR_CANTOPEN);
+	}
+	if (hdr.zero0 != 0 || hdr.type != 1 || hdr.imagesCount == 0) {
+		PRINTERR("Bad file header of %s\n", picname);
+		return(ERR_BADFILEHEADER);
+	}
+	PRINTVERBFIX(1, "Handle file: %s.\n", picname);
+	PRINTVERBFIX(2, "Images count: %d.\n", hdr.imagesCount);
+
+@ @<Прототипы...@>=	
+static void fixpal_handleOneFile(FILE *, ICO_Header *);
+
+@ @<FIXPAL Обработать одно...@>=
+	PRINTVERBFIX(2, "Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
+	" size:%d, offset:%x\n", cur_image,
+	img_width, img_height, 
+	imgs[cur_image].colors, imgs[cur_image].planes, imgs[cur_image].bpp,
+	imgs[cur_image].size, imgs[cur_image].offset);
+	fseek(fpic, imgs[cur_image].offset + 40 + 16 * 4, SEEK_SET);
+	fread(picInData, imgs[cur_image].size, 1, fpic);
+@ Переписываем данные из 16-ти цветного формата в 4-х цветный (просто обнуляем
+старшие биты цвета).
+@<FIXPAL Обработать одно...@>=
+	for (i = 0; i < imgs[cur_image].size; ++i) {
+		picInData[i] &= 0x33;
+	}
+	fseek(fpic, imgs[cur_image].offset + 40 + 16 * 4, SEEK_SET);
+	fwrite(picInData, imgs[cur_image].size, 1, fpic);
+@ Записываем палитру для первых 4-х цветов.
+@<Глобальн...@>=
+static uint32_t bkPalette[16][4] = {
+	{0, 0x0000ff, 0x00ff00, 0xff0000}, /* 0 синий, зеленый, красный */
+	{0, 0xffff00, 0xff00ff, 0xff0000}, /* 1 желтый, сиреневый, красный */
+	{0, 0x00ffff, 0x00ff00, 0xff00ff}, /* 2 голубой, синий, сиреневый */
+	{0, 0x00ff00, 0x00ffff, 0xffff00}, /* 3 зеленый, голубой, желтый */
+	{0, 0xff00ff, 0x00ffff, 0xffffff}, /* 4 сиреневый, голубой, белый */
+	{0, 0xffffff, 0xffffff, 0xffffff}, /* 5 белый, белый, белый */
+	{0, 0xcc0000, 0x800000, 0xff0000}, /* 6 темно-красный, красно-коричневый, красный */
+	{0, 0x80ff00, 0x00ff00, 0xffff00}, /* 7 салатовый, светло-зеленый, желтый */
+	{0, 0x8000ff, 0x3333cc, 0xff00ff}, /* 8 фиолетовый, фиолетово-синий, сиреневый */
+	{0, 0x80ff00, 0x3333cc, 0x800000}, /* 9 светло-зеленый, фиолетово-синий, красно-коричневый */
+	{0, 0x00ffff, 0x00ff00, 0xcc0000}, /* 10 салатовый, фиолетовый, темно-красный */
+	{0, 0x00ffff, 0xffff00, 0xff0000}, /* 11 голубой, желтый, красный */
+	{0, 0xff0000, 0x00ff00, 0x00ffff}, /* 12 красный, зеленый, голубой */
+	{0, 0x00ffff, 0xffff00, 0xffffff}, /* 13 голубой, желтый, белый */
+	{0, 0xffff00, 0x00ff00, 0xffffff}, /* 14 желтый, зеленый, белый */
+	{0, 0x00ffff, 0x00ff00, 0xffffff}, /* 15 голубой, зеленый, белый */
+};
+
+@ @<FIXPAL Обработать одно...@>=
+	fseek(fpic, imgs[cur_image].offset + 40, SEEK_SET);
+	fread(picPalette, 16 * sizeof(uint32_t), 1, fpic);
+	for (i = 0; i < 4; ++i) {
+		picPalette[i] = bkPalette[fixpal_config.palette][i];
+	}
+	for (; i < 16; ++i) {
+		picPalette[i] = 0;
+	}
+	fseek(fpic, imgs[cur_image].offset + 40, SEEK_SET);
+	fwrite(picPalette, 16 * sizeof(uint32_t), 1, fpic);
+
+@ @<FIXPAL Переменные для карт...@>=
+	static uint8_t picInData[256*256/2]; /* максимальный объем памяти под одно
+	изображение
+	256 пикселей в ширину, 256 пикселей в высоту, 2 пиксела в байте
+	*/
+	static uint32_t picPalette[16];
+	int i;
+		
+@ Обработка одного файла.
+@c
+static void
+fixpal_handleOneFile(FILE *fpic, ICO_Header *hdr) {
+	int cur_image;
+	IMG_Header *imgs; @|
+
+	/* размеры картинок не получится хранить в байте, так что храним
+	 * отдельно */
+	int img_width, img_height;
+
+	@<FIXPAL Переменные для картинки@>@;
+
+	imgs = (IMG_Header*)malloc(sizeof(IMG_Header) * hdr->imagesCount);
+
+	if (imgs == NULL) {
+		PRINTERR("No memory for image directory of %s.\n", config.picnames[cur_input]);
+		return;
+	}
+	/* читаем каталог изображений */
+	if (fread(imgs, sizeof(IMG_Header), hdr->imagesCount, fpic) != hdr->imagesCount) {
+		PRINTERR("Can't read image directory of %s.\n", fixpal_config.picnames[cur_input]);
+		free(imgs);
+		return;
+	}
+	
+	for (cur_image = 0; cur_image < hdr->imagesCount; ++cur_image) {
+		img_width = imgs[cur_image].width;
+		if (img_width == 0) {
+			img_width = 256;
+		}
+		img_height = imgs[cur_image].height;
+		if (img_height == 0) {
+			img_height = 256;
+		}
+		if (imgs[cur_image].bpp != 4) {
+			PRINTERR("Bad bits per pixel (%d) for image %d of %s.\n", 
+				imgs[cur_image].bpp, cur_image, fixpal_config.picnames[cur_input]);
+			continue;
+		}
+		if (img_width % 4 != 0) {
+			PRINTERR("Bad width (%d) for image %d of %s.\n", 
+				img_width, cur_image, fixpal_config.picnames[cur_input]);
+			continue;
+		}
+		@<FIXPAL Обработать одно изображение@>@;
+	}
+
+	free(imgs);
+}
+
+@ Разбор параметров командной строки для fix-pal. 
+@<Константы@>=
+const char *argp_fixpal_program_version = "fix-pal, " VERSION;
+const char *argp_fixpal_program_bug_address = "<yellowrabbit@@bk.ru>";
+
+@ @<Глобальн...@>=
+static char argp_fixpal_program_doc[] = "Set BK palette in ICO file";
+static char args_fixpal_doc[] = "file [...]";
+
+@ Распознаются следующие опции:
+\smallskip
+	\item {} {\tt -p NUM} --- номер палитры БК11М.
+\smallskip
+@<Глобальн...@>=
+static struct argp_option fixpal_options[] = {@/
+	{ "palette", 'p', "NUM", 0, "BK palette number"},@/
+	{ "verbose", 'v', NULL, 0, "Verbose output (-vv --- more debug info)"},@/
+	{ 0 }@/
+};
+static error_t parse_fixpal_opt(int, char*, struct argp_state*);@!
+static struct argp argp_fixpal = {fixpal_options, parse_fixpal_opt, args_fixpal_doc,
+argp_fixpal_program_doc};
+
+@ Эта структура используется для получения результатов разбора параметров командной строки.
+@<Собственные...@>=
+typedef struct _fixpal_Arguments {
+	int palette; /* номер палитры БК11М */
+	int verbosity;
+	char **picnames;		    /* Имена файлов картинок
+					 picnames[?] == NULL --> конец имен*/
+} fixpal_Arguments;
+
+@ @<Глобальные...@>=
+static fixpal_Arguments fixpal_config = { 10, 0, NULL}; 
+
+
+@ Задачей данного простого парсера является заполнение структуры |Arguments| из указанных
+параметров командной строки.
+@c
+static error_t 
+parse_fixpal_opt(int key, char *arg, struct argp_state *state) {
+ fixpal_Arguments *arguments;
+	arguments = (fixpal_Arguments*)state->input;
+ switch (key) {
+	case 'v':
+		++arguments->verbosity;
+		break;
+	case 'p' :
+		arguments->palette = atoi(arg);
+		break;
+	case ARGP_KEY_ARG:
+		/* Имена файлов картинок */
+		arguments->picnames = &state->argv[state->next - 1];
+		/* Останавливаем разбор параметров */
+		state->next = state->argc;
+		break;
+	default:
+		break;
+		return(ARGP_ERR_UNKNOWN);
+	}
+	return(0);
+}
+@ 
+
+@<FIXPAL Разобрать ком...@>=
+	argp_parse(&argp_fixpal, argc, argv, 0, 0, &fixpal_config);@/
+	/* Проверка параметров */
+	if (fixpal_config.palette > 15) {
+		PRINTERR("Bad palette number:%d\n", fixpal_config.palette);
+		return(ERR_SYNTAX);
+	}
+	if (fixpal_config.picnames == NULL) {
+		PRINTERR("No input filenames specified\n");
+		return(ERR_SYNTAX);
+	}
 @ @<Включение ...@>=
 #include <string.h>
 #include <stdlib.h>
+#include <libgen.h>
 
 #ifdef __linux__
 #include <stdint.h>
@@ -674,6 +898,8 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 @
 @<Глобальные...@>=
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
+  (fmt), ## a) : 0)
+#define PRINTVERBFIX(level, fmt, a...) (((fixpal_config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
 #define PRINTERR(fmt, a...) fprintf(stderr, (fmt), ## a) 
 
