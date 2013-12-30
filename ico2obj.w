@@ -651,7 +651,18 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 @d ERR_BADFILEHEADER	4
 @d ERR_CANTOPENOBJ	5
 
-@<Разобрать ком...@>=
+@<Глобальные...@>=
+static char prog_name[FILENAME_MAX + 1];
+
+@ @<Разобрать ком...@>=
+	/* Проверяем не вызваны ли мы как fix-pal */
+	strncpy(prog_name, argv[0], FILENAME_MAX);
+	prog_name[FILENAME_MAX] = '\0';
+
+	if (strcmp("fix-pal", basename(prog_name)) == 0) {
+		@<Работаем как FIXPAL@>@;
+		return(0);
+	}
 	argp_parse(&argp, argc, argv, 0, 0, &config);@/
 	/* Проверка параметров */
 	if (strlen(config.output_filename) == 0) {
@@ -662,10 +673,84 @@ parse_opt(int key, char *arg, struct argp_state *state) {
 		PRINTERR("No input filenames specified\n");
 		return(ERR_SYNTAX);
 	}
+@* Исправление цветов и установка палитры.
+@<Работаем как FIXPAL@>=
+	@<FIXPAL Разобрать командную строку@>@;
 
+@ Разбор параметров командной строки для fix-pal. 
+@<Константы@>=
+const char *argp_fixpal_program_version = "fix-pal, " VERSION;
+const char *argp_fixpal_program_bug_address = "<yellowrabbit@@bk.ru>";
+
+@ @<Глобальн...@>=
+static char argp_fixpal_program_doc[] = "Set BK palette in ICO file";
+static char args_fixpal_doc[] = "file [...]";
+
+@ Распознаются следующие опции:
+\smallskip
+	\item {} {\tt -p NUM} --- номер палитры БК11М.
+\smallskip
+@<Глобальн...@>=
+static struct argp_option fixpal_options[] = {@/
+	{ "palette", 'p', "NUM", 0, "BK palette number"},@/
+	{ 0 }@/
+};
+static error_t parse_fixpal_opt(int, char*, struct argp_state*);@!
+static struct argp argp_fixpal = {fixpal_options, parse_fixpal_opt, args_fixpal_doc,
+argp_fixpal_program_doc};
+
+@ Эта структура используется для получения результатов разбора параметров командной строки.
+@<Собственные...@>=
+typedef struct _fixpal_Arguments {
+	int palette; /* номер палитры БК11М */
+	char **picnames;		    /* Имена файлов картинок
+					 picnames[?] == NULL --> конец имен*/
+} fixpal_Arguments;
+
+@ @<Глобальные...@>=
+static fixpal_Arguments fixpal_config = { 10 }; 
+
+
+@ Задачей данного простого парсера является заполнение структуры |Arguments| из указанных
+параметров командной строки.
+@c
+static error_t 
+parse_fixpal_opt(int key, char *arg, struct argp_state *state) {
+ fixpal_Arguments *arguments;
+	arguments = (fixpal_Arguments*)state->input;
+ switch (key) {
+	case 'p' :
+		arguments->palette = atoi(arg);
+		break;
+	case ARGP_KEY_ARG:
+		/* Имена файлов картинок */
+		arguments->picnames = &state->argv[state->next - 1];
+		/* Останавливаем разбор параметров */
+		state->next = state->argc;
+		break;
+	default:
+		break;
+		return(ARGP_ERR_UNKNOWN);
+	}
+	return(0);
+}
+@ 
+
+@<FIXPAL Разобрать ком...@>=
+	argp_parse(&argp_fixpal, argc, argv, 0, 0, &fixpal_config);@/
+	/* Проверка параметров */
+	if (fixpal_config.palette > 15) {
+		PRINTERR("Bad palette number:%d\n", fixpal_config.palette);
+		return(ERR_SYNTAX);
+	}
+	if (config.picnames == NULL) {
+		PRINTERR("No input filenames specified\n");
+		return(ERR_SYNTAX);
+	}
 @ @<Включение ...@>=
 #include <string.h>
 #include <stdlib.h>
+#include <libgen.h>
 
 #ifdef __linux__
 #include <stdint.h>
