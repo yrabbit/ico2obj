@@ -184,22 +184,22 @@ static char prog_name[FILENAME_MAX+1];
 #line 723 "ico2obj.w"
 
 static uint32_t bkPalette[16][4]= {
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0x00ff00,0xff0000,0xffffff},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
-{0,0,0,0},
+{0,0x0000ff,0x00ff00,0xff0000},
+{0,0xffff00,0xff00ff,0xff0000},
+{0,0x00ffff,0x00ff00,0xff00ff},
+{0,0x00ff00,0x00ffff,0xffff00},
+{0,0xff00ff,0x00ffff,0xffffff},
+{0,0xffffff,0xffffff,0xffffff},
+{0,0xcc0000,0x800000,0xff0000},
+{0,0x80ff00,0x00ff00,0xffff00},
+{0,0x8000ff,0x3333cc,0xff00ff},
+{0,0x80ff00,0x3333cc,0x800000},
+{0,0x00ffff,0x00ff00,0xcc0000},
+{0,0x00ffff,0xffff00,0xff0000},
+{0,0xff0000,0x00ff00,0x00ffff},
+{0,0x00ffff,0xffff00,0xffffff},
+{0,0xffff00,0x00ff00,0xffffff},
+{0,0x00ffff,0x00ff00,0xffffff},
 };
 
 /*:43*//*48:*/
@@ -230,6 +230,8 @@ static fixpal_Arguments fixpal_config= {10,0,NULL};
 #line 901 "ico2obj.w"
 
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
+  (fmt), ## a) : 0)
+#define PRINTVERBFIX(level, fmt, a...) (((fixpal_config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
 #define PRINTERR(fmt, a...) fprintf(stderr, (fmt), ## a)
 
@@ -298,8 +300,8 @@ if(hdr.zero0!=0||hdr.type!=1||hdr.imagesCount==0){
 PRINTERR("Bad file header of %s\n",picname);
 return(ERR_BADFILEHEADER);
 }
-PRINTVERB(1,"Handle file: %s.\n",picname);
-PRINTVERB(2,"Images count: %d.\n",hdr.imagesCount);
+PRINTVERBFIX(1,"Handle file: %s.\n",picname);
+PRINTVERBFIX(2,"Images count: %d.\n",hdr.imagesCount);
 
 /*:39*/
 #line 681 "ico2obj.w"
@@ -865,7 +867,7 @@ continue;
 /*41:*/
 #line 706 "ico2obj.w"
 
-PRINTVERB(2,"Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
+PRINTVERBFIX(2,"Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
 " size:%d, offset:%x\n",cur_image,
 img_width,img_height,
 imgs[cur_image].colors,imgs[cur_image].planes,imgs[cur_image].bpp,

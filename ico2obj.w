@@ -697,14 +697,14 @@ static char prog_name[FILENAME_MAX + 1];
 		PRINTERR("Bad file header of %s\n", picname);
 		return(ERR_BADFILEHEADER);
 	}
-	PRINTVERB(1, "Handle file: %s.\n", picname);
-	PRINTVERB(2, "Images count: %d.\n", hdr.imagesCount);
+	PRINTVERBFIX(1, "Handle file: %s.\n", picname);
+	PRINTVERBFIX(2, "Images count: %d.\n", hdr.imagesCount);
 
 @ @<Прототипы...@>=	
 static void fixpal_handleOneFile(FILE *, ICO_Header *);
 
 @ @<FIXPAL Обработать одно...@>=
-	PRINTVERB(2, "Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
+	PRINTVERBFIX(2, "Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
 	" size:%d, offset:%x\n", cur_image,
 	img_width, img_height, 
 	imgs[cur_image].colors, imgs[cur_image].planes, imgs[cur_image].bpp,
@@ -722,22 +722,22 @@ static void fixpal_handleOneFile(FILE *, ICO_Header *);
 @ Записываем палитру для первых 4-х цветов.
 @<Глобальн...@>=
 static uint32_t bkPalette[16][4] = {
-	{0, 0, 0, 0}, /* палитра 0 */
-	{0, 0, 0, 0}, /* палитра 1 */
-	{0, 0, 0, 0}, /* палитра 2 */
-	{0, 0, 0, 0}, /* палитра 3 */
-	{0, 0, 0, 0}, /* палитра 4 */
-	{0, 0, 0, 0}, /* палитра 5 */
-	{0, 0, 0, 0}, /* палитра 6 */
-	{0, 0, 0, 0}, /* палитра 7 */
-	{0, 0, 0, 0}, /* палитра 8 */
-	{0, 0, 0, 0}, /* палитра 9 */
-	{0, 0x00ff00, 0xff0000, 0xffffff}, /* палитра 10 */
-	{0, 0, 0, 0}, /* палитра 11 */
-	{0, 0, 0, 0}, /* палитра 12 */
-	{0, 0, 0, 0}, /* палитра 13 */
-	{0, 0, 0, 0}, /* палитра 14 */
-	{0, 0, 0, 0}, /* палитра 15 */
+	{0, 0x0000ff, 0x00ff00, 0xff0000}, /* 0 синий, зеленый, красный */
+	{0, 0xffff00, 0xff00ff, 0xff0000}, /* 1 желтый, сиреневый, красный */
+	{0, 0x00ffff, 0x00ff00, 0xff00ff}, /* 2 голубой, синий, сиреневый */
+	{0, 0x00ff00, 0x00ffff, 0xffff00}, /* 3 зеленый, голубой, желтый */
+	{0, 0xff00ff, 0x00ffff, 0xffffff}, /* 4 сиреневый, голубой, белый */
+	{0, 0xffffff, 0xffffff, 0xffffff}, /* 5 белый, белый, белый */
+	{0, 0xcc0000, 0x800000, 0xff0000}, /* 6 темно-красный, красно-коричневый, красный */
+	{0, 0x80ff00, 0x00ff00, 0xffff00}, /* 7 салатовый, светло-зеленый, желтый */
+	{0, 0x8000ff, 0x3333cc, 0xff00ff}, /* 8 фиолетовый, фиолетово-синий, сиреневый */
+	{0, 0x80ff00, 0x3333cc, 0x800000}, /* 9 светло-зеленый, фиолетово-синий, красно-коричневый */
+	{0, 0x00ffff, 0x00ff00, 0xcc0000}, /* 10 салатовый, фиолетовый, темно-красный */
+	{0, 0x00ffff, 0xffff00, 0xff0000}, /* 11 голубой, желтый, красный */
+	{0, 0xff0000, 0x00ff00, 0x00ffff}, /* 12 красный, зеленый, голубой */
+	{0, 0x00ffff, 0xffff00, 0xffffff}, /* 13 голубой, желтый, белый */
+	{0, 0xffff00, 0x00ff00, 0xffffff}, /* 14 желтый, зеленый, белый */
+	{0, 0x00ffff, 0x00ff00, 0xffffff}, /* 15 голубой, зеленый, белый */
 };
 
 @ @<FIXPAL Обработать одно...@>=
@@ -900,6 +900,8 @@ parse_fixpal_opt(int key, char *arg, struct argp_state *state) {
 @
 @<Глобальные...@>=
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
+  (fmt), ## a) : 0)
+#define PRINTVERBFIX(level, fmt, a...) (((fixpal_config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
 #define PRINTERR(fmt, a...) fprintf(stderr, (fmt), ## a) 
 
