@@ -1,8 +1,8 @@
 /*1:*/
 #line 49 "ico2obj.w"
 
-/*46:*/
-#line 750 "ico2obj.w"
+/*54:*/
+#line 889 "ico2obj.w"
 
 #include <string.h> 
 #include <stdlib.h> 
@@ -14,7 +14,7 @@
 
 #include <argp.h> 
 
-/*:46*/
+/*:54*/
 #line 50 "ico2obj.w"
 
 #define VERSION "0.1" \
@@ -34,13 +34,13 @@
 const char*argp_program_version= "ico2obj, "VERSION;
 const char*argp_program_bug_address= "<yellowrabbit@bk.ru>";
 
-/*:30*//*39:*/
-#line 681 "ico2obj.w"
+/*:30*//*47:*/
+#line 815 "ico2obj.w"
 
 const char*argp_fixpal_program_version= "fix-pal, "VERSION;
 const char*argp_fixpal_program_bug_address= "<yellowrabbit@bk.ru>";
 
-/*:39*/
+/*:47*/
 #line 52 "ico2obj.w"
 
 /*5:*/
@@ -82,16 +82,17 @@ int colors[4];
 int transpose;
 }Arguments;
 
-/*:33*//*42:*/
-#line 703 "ico2obj.w"
+/*:33*//*50:*/
+#line 838 "ico2obj.w"
 
 typedef struct _fixpal_Arguments{
 int palette;
+int verbosity;
 char**picnames;
 
 }fixpal_Arguments;
 
-/*:42*/
+/*:50*/
 #line 53 "ico2obj.w"
 
 /*14:*/
@@ -117,7 +118,12 @@ static void write_text(uint8_t*,int);
 
 static uint16_t toRadix50(char*);
 
-/*:28*/
+/*:28*//*40:*/
+#line 703 "ico2obj.w"
+
+static void fixpal_handleOneFile(FILE*,ICO_Header*);
+
+/*:40*/
 #line 54 "ico2obj.w"
 
 /*2:*/
@@ -174,37 +180,60 @@ static Arguments config= {0,{0},{'P','I','C',0,0,0,0},
 
 static char prog_name[FILENAME_MAX+1];
 
-/*:36*//*40:*/
-#line 685 "ico2obj.w"
+/*:36*//*43:*/
+#line 723 "ico2obj.w"
+
+static uint32_t bkPalette[16][4]= {
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0x00ff00,0xff0000,0xffffff},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+{0,0,0,0},
+};
+
+/*:43*//*48:*/
+#line 819 "ico2obj.w"
 
 static char argp_fixpal_program_doc[]= "Set BK palette in ICO file";
 static char args_fixpal_doc[]= "file [...]";
 
-/*:40*//*41:*/
-#line 693 "ico2obj.w"
+/*:48*//*49:*/
+#line 827 "ico2obj.w"
 
 static struct argp_option fixpal_options[]= {
 {"palette",'p',"NUM",0,"BK palette number"},
+{"verbose",'v',NULL,0,"Verbose output (-vv --- more debug info)"},
 {0}
 };
 static error_t parse_fixpal_opt(int,char*,struct argp_state*);
 static struct argp argp_fixpal= {fixpal_options,parse_fixpal_opt,args_fixpal_doc,
 argp_fixpal_program_doc};
 
-/*:41*//*43:*/
-#line 710 "ico2obj.w"
+/*:49*//*51:*/
+#line 846 "ico2obj.w"
 
-static fixpal_Arguments fixpal_config= {10};
+static fixpal_Arguments fixpal_config= {10,0,NULL};
 
 
-/*:43*//*47:*/
-#line 762 "ico2obj.w"
+/*:51*//*55:*/
+#line 901 "ico2obj.w"
 
 #define PRINTVERB(level, fmt, a...) (((config.verbosity) >= level) ? printf(\
   (fmt), ## a) : 0)
 #define PRINTERR(fmt, a...) fprintf(stderr, (fmt), ## a)
 
-/*:47*/
+/*:55*/
 #line 55 "ico2obj.w"
 
 int
@@ -236,8 +265,8 @@ if(strcmp("fix-pal",basename(prog_name))==0){
 /*38:*/
 #line 677 "ico2obj.w"
 
-/*45:*/
-#line 739 "ico2obj.w"
+/*53:*/
+#line 878 "ico2obj.w"
 
 argp_parse(&argp_fixpal,argc,argv,0,0,&fixpal_config);
 
@@ -245,13 +274,40 @@ if(fixpal_config.palette> 15){
 PRINTERR("Bad palette number:%d\n",fixpal_config.palette);
 return(ERR_SYNTAX);
 }
-if(config.picnames==NULL){
+if(fixpal_config.picnames==NULL){
 PRINTERR("No input filenames specified\n");
 return(ERR_SYNTAX);
 }
-/*:45*/
+/*:53*/
 #line 678 "ico2obj.w"
 
+while((picname= fixpal_config.picnames[cur_input])!=NULL){
+fpic= fopen(picname,"r+");
+/*39:*/
+#line 687 "ico2obj.w"
+
+if(fpic==NULL){
+PRINTERR("Can't open %s\n",picname);
+return(ERR_CANTOPEN);
+}
+if(fread(&hdr,sizeof(hdr),1,fpic)!=1){
+PRINTERR("Can't read header of %s\n",picname);
+return(ERR_CANTOPEN);
+}
+if(hdr.zero0!=0||hdr.type!=1||hdr.imagesCount==0){
+PRINTERR("Bad file header of %s\n",picname);
+return(ERR_BADFILEHEADER);
+}
+PRINTVERB(1,"Handle file: %s.\n",picname);
+PRINTVERB(2,"Images count: %d.\n",hdr.imagesCount);
+
+/*:39*/
+#line 681 "ico2obj.w"
+
+fixpal_handleOneFile(fpic,&hdr);
+fclose(fpic);
+++cur_input;
+}
 
 /*:38*/
 #line 663 "ico2obj.w"
@@ -748,14 +804,115 @@ return(ARGP_ERR_UNKNOWN);
 }
 return(0);
 }
-/*:35*//*44:*/
+/*:35*//*46:*/
+#line 764 "ico2obj.w"
+
+static void
+fixpal_handleOneFile(FILE*fpic,ICO_Header*hdr){
+int cur_image;
+IMG_Header*imgs;
+
+
+
+int img_width,img_height;
+
+/*45:*/
+#line 755 "ico2obj.w"
+
+static uint8_t picInData[256*256/2];
+
+
+
+static uint32_t picPalette[16];
+int i;
+
+/*:45*/
+#line 774 "ico2obj.w"
+
+
+imgs= (IMG_Header*)malloc(sizeof(IMG_Header)*hdr->imagesCount);
+
+if(imgs==NULL){
+PRINTERR("No memory for image directory of %s.\n",config.picnames[cur_input]);
+return;
+}
+
+if(fread(imgs,sizeof(IMG_Header),hdr->imagesCount,fpic)!=hdr->imagesCount){
+PRINTERR("Can't read image directory of %s.\n",fixpal_config.picnames[cur_input]);
+free(imgs);
+return;
+}
+
+for(cur_image= 0;cur_image<hdr->imagesCount;++cur_image){
+img_width= imgs[cur_image].width;
+if(img_width==0){
+img_width= 256;
+}
+img_height= imgs[cur_image].height;
+if(img_height==0){
+img_height= 256;
+}
+if(imgs[cur_image].bpp!=4){
+PRINTERR("Bad bits per pixel (%d) for image %d of %s.\n",
+imgs[cur_image].bpp,cur_image,fixpal_config.picnames[cur_input]);
+continue;
+}
+if(img_width%4!=0){
+PRINTERR("Bad width (%d) for image %d of %s.\n",
+img_width,cur_image,fixpal_config.picnames[cur_input]);
+continue;
+}
+/*41:*/
+#line 706 "ico2obj.w"
+
+PRINTVERB(2,"Image:%d, w:%d, h:%d, colors:%d, planes:%d, bpp:%d,"
+" size:%d, offset:%x\n",cur_image,
+img_width,img_height,
+imgs[cur_image].colors,imgs[cur_image].planes,imgs[cur_image].bpp,
+imgs[cur_image].size,imgs[cur_image].offset);
+fseek(fpic,imgs[cur_image].offset+40+16*4,SEEK_SET);
+fread(picInData,imgs[cur_image].size,1,fpic);
+/*:41*//*42:*/
 #line 716 "ico2obj.w"
+
+for(i= 0;i<imgs[cur_image].size;++i){
+picInData[i]&= 0x33;
+}
+fseek(fpic,imgs[cur_image].offset+40+16*4,SEEK_SET);
+fwrite(picInData,imgs[cur_image].size,1,fpic);
+/*:42*//*44:*/
+#line 743 "ico2obj.w"
+
+fseek(fpic,imgs[cur_image].offset+40,SEEK_SET);
+fread(picPalette,16*sizeof(uint32_t),1,fpic);
+for(i= 0;i<4;++i){
+picPalette[i]= bkPalette[fixpal_config.palette][i];
+}
+for(;i<16;++i){
+picPalette[i]= 0;
+}
+fseek(fpic,imgs[cur_image].offset+40,SEEK_SET);
+fwrite(picPalette,16*sizeof(uint32_t),1,fpic);
+
+/*:44*/
+#line 808 "ico2obj.w"
+
+}
+
+free(imgs);
+}
+
+/*:46*//*52:*/
+#line 852 "ico2obj.w"
 
 static error_t
 parse_fixpal_opt(int key,char*arg,struct argp_state*state){
 fixpal_Arguments*arguments;
 arguments= (fixpal_Arguments*)state->input;
 switch(key){
+case'v':
+++arguments->verbosity;
+break;
 case'p':
 arguments->palette= atoi(arg);
 break;
@@ -771,4 +928,4 @@ return(ARGP_ERR_UNKNOWN);
 }
 return(0);
 }
-/*:44*/
+/*:52*/
